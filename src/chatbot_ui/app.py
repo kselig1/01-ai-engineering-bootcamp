@@ -17,9 +17,20 @@ with st.sidebar:
     else:
         model_name = st.selectbox("Model", ["gemini-2.0-flash"])
 
-    # Save provider and model to session state
+    # Temperature slider for controlling randomness
+    temperature = st.slider(
+        "Temperature", 
+        min_value=0.0, 
+        max_value=2.0, 
+        value=0.0, 
+        step=1.0,
+        help="Controls randomness in the response. Lower values make responses more focused while higher values make them random."
+    )
+
+    # Save provider and model to session state, temperature
     st.session_state.provider = provider
     st.session_state.model_name = model_name
+    st.session_state.temperature = temperature
 
 def api_call(method, url, **kwargs):
 
@@ -66,7 +77,11 @@ if prompt := st.chat_input("Hello! How can I assist you today?"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        output = api_call("post", f"{config.API_URL}/chat", json={"provider": st.session_state.provider, "model_name": st.session_state.model_name, "messages": st.session_state.messages})
+        output = api_call("post", f"{config.API_URL}/chat", json={
+            "provider": st.session_state.provider, 
+            "model_name": st.session_state.model_name, 
+            "messages": st.session_state.messages,
+            "temperature": st.session_state.temperature})
         response_data = output[1]
         answer = response_data["message"]
         st.write(answer)
