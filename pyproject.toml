@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.118.0",
+    "fastembed>=0.7.3",
     "google-genai>=1.41.0",
     "groq>=0.32.0",
     "instructor>=1.11.3",
