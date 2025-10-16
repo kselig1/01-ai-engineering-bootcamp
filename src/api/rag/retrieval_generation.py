@@ -1,12 +1,13 @@
 import openai 
 import instructor 
 import numpy as np 
+import cohere
 
 from pydantic import BaseModel, Field
 from langsmith import traceable, get_current_run_tree 
 
 from qdrant_client import QdrantClient 
-from qdrant_client.models import Filter, FieldCondition, MatchValue 
+from qdrant_client.models import Filter, FieldCondition, MatchValue, Prefetch, Document, FusionQuery
 
 class RAGUsedContext(BaseModel):  
     id: str = Field(description="The id of the item used to answer the question")
@@ -40,12 +41,33 @@ def get_embedding(text, model="text-embedding-3-small"):
     run_type="retriever"
 )
 def retrieve_data(query, qdrant_client, k=5): 
+
+    cohere_client = cohere.ClientV2()
     query_embedding = get_embedding(query)  
+
     results = qdrant_client.query_points(
-        collection_name="Amazon-items-collection-00",  
-        query=query_embedding, 
-        limit=k,  
-    ) 
+        collection_name="Amazon-items-collection-01-hybrid-search",
+        prefetch=[
+            Prefetch(
+                query=query_embedding,
+                using="text-embedding-3-small",
+                limit=20
+            ),
+            Prefetch(
+                query=Document(
+                    text=query,
+                    model="qdrant/bm25"
+                ),
+                using="bm25",
+                limit=20
+            )
+        ],
+        query=FusionQuery(fusion="rrf"),
+        limit=k,
+    )
+
+
+
     retrieved_context_ids = []
     retrieved_context = [] 
     retrieved_context_ratings = [] 
@@ -152,6 +174,7 @@ def rag_pipeline(question, qdrant_client,top_k=5):
     return final_result
 
 def rag_pipeline_wrapper(question, top_k=5): 
+
     qdrant_client = QdrantClient(url="http://qdrant:6333") 
 
     result = rag_pipeline(question, qdrant_client, top_k) 
@@ -161,8 +184,9 @@ def rag_pipeline_wrapper(question, top_k=5):
 
     for item in result.get("references", []):
         payload = qdrant_client.query_points( 
-            collection_name="Amazon-items-collection-00", 
+            collection_name="Amazon-items-collection-01-hybrid-search", 
             query=dummy_vector, 
+            using="text-embedding-3-small",
             limit=1, 
             with_payload=True, 
             query_filter = Filter( 
