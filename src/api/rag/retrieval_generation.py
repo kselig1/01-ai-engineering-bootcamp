@@ -9,6 +9,8 @@ from langsmith import traceable, get_current_run_tree
 from qdrant_client import QdrantClient 
 from qdrant_client.models import Filter, FieldCondition, MatchValue, Prefetch, Document, FusionQuery
 
+from api.rag.utils.prompt_management import prompt_template_config
+
 class RAGUsedContext(BaseModel):  
     id: str = Field(description="The id of the item used to answer the question")
     description: str = Field(description="Short description of the items used to answer the question")
@@ -104,29 +106,13 @@ def process_context(context):
 )
 def build_prompt(preprocessed_context, question): 
 
-    prompt = f""" 
-    YYou are a shopping assistant that can answer qeustions about the products in stock. 
+    template = prompt_template_config("src/api/rag/prompts/retrieval_generation.yaml", "retrieval_generation")
+    rendered_prompt = template.render(
+        preprocessed_context=preprocessed_context, 
+        question=question
+    )
 
-    You will be given a question and a list of context. 
-
-    Instructions: 
-    - You need to answer the question based on the provided context only. 
-    - Never use word context and refer to it as the available products. 
-    - Also as an output, you need to provide: 
-
-    * The answer to the question based on the provided context.
-    * The list of the IDs of the chunks that were used to answer the question. Only return the ones that are used in the answer. 
-    * Short description (1-2 sentences) of the item based on the description provided in the context. 
-
-    - The short description should have the name of the item. 
-    - The answer to the question should contain detailed information about the product and returned with detailed specification in bullet points.
-    Context: 
-    {preprocessed_context} 
-
-    Question: 
-    {question} 
-    """ 
-    return prompt 
+    return rendered_prompt 
 
 @traceable(
     name="generate_answer",
