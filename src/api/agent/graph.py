@@ -4,7 +4,7 @@ from operator import add
 from langgraph.graph import StateGraph, START, END
 from api.agent.utils.utils import get_tool_descriptions 
 from api.agent.agents import agent_node, intent_router_node, ToolCall, RAGUsedContext
-from api.agent.tools import get_formatted_context
+from api.agent.tools import get_formatted_item_context, get_formatted_reviews_context
 from langgraph.prebuilt import ToolNode
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue 
@@ -47,7 +47,7 @@ def intent_router_conditional_edges(state: State):
 
 workflow = StateGraph(State)
 
-tools = [get_formatted_context]
+tools = [get_formatted_item_context, get_formatted_reviews_context]
 tool_node = ToolNode(tools)
 tool_descriptions = get_tool_descriptions(tools)
 
