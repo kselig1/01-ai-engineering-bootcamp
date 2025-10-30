@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 import logging
-
+import uuid
 from core.config import config
 
 logging.basicConfig(level=logging.INFO)
@@ -12,6 +12,13 @@ st.set_page_config(
     layout="wide",  
     initial_sidebar_state="expanded",  
 )
+
+def get_session_id():
+    if 'session_id' not in st.session_state:
+        st.session_state.session_id = str(uuid.uuid4())
+    return st.session_state.session_id
+
+session_id = get_session_id()
 
 def api_call(method, url, **kwargs):
 
@@ -77,7 +84,7 @@ if prompt := st.chat_input("Hello! How can I assist you today?"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        status, output = api_call("post", f"{config.API_URL}/rag", json={"query": prompt})
+        status, output = api_call("post", f"{config.API_URL}/rag", json={"query": prompt, "thread_id": session_id})
 
         answer = output["answer"]
         used_context = output["used_context"]

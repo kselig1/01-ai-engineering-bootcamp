@@ -13,7 +13,7 @@ def rag(
     request: Request, 
     payload: AgentRequest
 ) -> AgentResponse: 
-    answer = run_agent_wrapper(payload.query) 
+    answer = run_agent_wrapper(payload.query, payload.thread_id) 
     return AgentResponse(
         request_id=request.state.request_id,
         answer=answer["answer"],
