@@ -21,6 +21,7 @@ class State(BaseModel):
     tool_calls: List[ToolCall] = []
     final_answer: bool = False 
     references: Annotated[List[RAGUsedContext], add] = []
+    trace_id: str = ""
 
 #### Routers 
 
@@ -146,16 +147,15 @@ def run_agent_stream_wrapper(question: str, thread_id: str):
         for chunk in graph.stream(
             initial_state, 
             config=config,
-            stream_mode=["debug", "updates"]
+            stream_mode=["debug", "values"]
         ):
             processed_chunk = _process_graph_event(chunk) 
 
             if processed_chunk:
                 yield _string_for_sse(processed_chunk)
 
-            if chunk[0] == "updates": 
-                update = chunk[1] 
-                first_key, result = next(iter(update.items()))
+            if chunk[0] == "values": 
+                result = chunk[1] 
 
     used_context = []  
     dummy_vector = np.zeros(1536).tolist() 
@@ -187,7 +187,8 @@ def run_agent_stream_wrapper(question: str, thread_id: str):
             "type": "final_result", 
             "data": {
             "answer": result.get("answer"),
-            "used_context": used_context
+            "used_context": used_context, 
+            "trace_id": result.get("trace_id")
             }
         }
     ))
