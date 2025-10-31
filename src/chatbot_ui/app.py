@@ -3,6 +3,7 @@ import requests
 import logging
 import uuid
 from core.config import config
+import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -52,6 +53,30 @@ def api_call(method, url, **kwargs):
         _show_error_popup(f"An unexpected error occurred: {str(e)}")
         return False, {"message": str(e)}
 
+def api_call_stream(method, url, **kwargs):
+
+    def _show_error_popup(message):
+        """Show error message as a popup in the top-right corner."""
+        st.session_state["error_popup"] = {
+            "visible": True,
+            "message": message,
+        }
+
+    try:
+        response = getattr(requests, method)(url, **kwargs)
+
+        return response.iter_lines()
+
+    except requests.exceptions.ConnectionError:
+        _show_error_popup("Connection error. Please check your network connection.")
+        return False, {"message": "Connection error"}
+    except requests.exceptions.Timeout:
+        _show_error_popup("The request timed out. Please try again later.")
+        return False, {"message": "Request timeout"}
+    except Exception as e:
+        _show_error_popup(f"An unexpected error occurred: {str(e)}")
+        return False, {"message": str(e)}
+
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": "Hello! How can I assist you today?"}]
 
@@ -80,17 +105,41 @@ for message in st.session_state.messages:
 
 if prompt := st.chat_input("Hello! How can I assist you today?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
+    
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        status, output = api_call("post", f"{config.API_URL}/rag", json={"query": prompt, "thread_id": session_id})
+        status_placeholder = st.empty()
+        message_placeholder = st.empty()
+        
+        for line in api_call_stream(
+            "post", 
+            f"{config.API_URL}/rag",
+            json={"query": prompt, "thread_id": session_id},
+            stream=True,
+            headers={"Accept": "text/event-stream"}
+        ):
+            line_text = line.decode('utf-8')
+            
+            if line_text.startswith('data: '):
+                data = line_text[6:]
+                
+                try:
+                    output = json.loads(data)
+                    
+                    if output["type"] == "final_result":
+                        answer = output["data"]["answer"]
+                        used_context = output["data"]["used_context"]
+                        
+                        st.session_state.used_context = used_context
+                        st.session_state.messages.append({"role": "assistant", "content": answer})
+                        
+                        status_placeholder.empty()
+                        message_placeholder.markdown(answer)
+                        break
+                        
+                except json.JSONDecodeError as e:
+                    status_placeholder.markdown(f"*{data}*")
 
-        answer = output["answer"]
-        used_context = output["used_context"]
-
-        st.session_state.used_context = used_context
-
-        st.write(answer)
-    st.session_state.messages.append({"role": "assistant", "content": answer})
     st.rerun()

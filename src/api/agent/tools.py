@@ -179,7 +179,7 @@ def get_formatted_reviews_context(query: str, item_list: list, top_k: int=5) -> 
         A string of the top k context chunks with IDs prepending each chunk, each representing a review for a given inventory item for a given query.
     """
 
-    context = retrieve_data(query, top_k)
-    formatted_context = process_context(context)
+    context = retrieve_reviews_data(query, item_list, top_k)
+    formatted_context = process_reviews_context(context)
 
     return formatted_context
