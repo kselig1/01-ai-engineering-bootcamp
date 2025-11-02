@@ -5,9 +5,11 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "beartype==0.20.0",
     "cohere>=5.19.0",
     "fastapi>=0.118.0",
     "fastembed>=0.7.3",
+    "fastmcp==2.12.0",
     "google-genai>=1.41.0",
     "groq>=0.32.0",
     "instructor>=1.11.3",
