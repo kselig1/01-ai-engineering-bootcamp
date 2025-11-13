@@ -236,13 +236,27 @@ def run_agent_stream_wrapper(question: str, thread_id: str):
         if image_url:  
             used_context.append({"image_url": image_url, "price": price, "description": item.description})
 
+    shopping_cart = get_shopping_cart(thread_id, thread_id)
+    shopping_cart_items = [
+        {
+            "price": item.get("price"),
+            "quantity": item.get("quantity"),
+            "currency": item.get("currency"), 
+            "product_image_url": item.get("product_image_url"),
+            "total_price": item.get("total_price")
+        }
+        for item in shopping_cart
+    ]
+
     yield _string_for_sse(json.dumps(
         {
             "type": "final_result", 
             "data": {
             "answer": result.get("answer"),
             "used_context": used_context, 
-            "trace_id": result.get("trace_id")
+            "trace_id": result.get("trace_id"), 
+            "shopping_cart": shopping_cart_items
             }
-        }
+        },
+        default=float
     ))
