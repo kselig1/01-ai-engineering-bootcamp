@@ -35,11 +35,17 @@ class ShoppingCartAgentResponse(BaseModel):
     final_answer: bool = False 
     tool_calls: List[ToolCall] = []
 
-### Intent Router Structured output schemas
+### Coordinator Agent Structured output schemas
 
-class IntentRouterResponse(BaseModel): 
-    user_intent: str 
-    answer: str  
+class Delegation(BaseModel): 
+    agent: str 
+    task: str
+
+class CoordinatorAgentResponse(BaseModel): 
+    next_agent: str 
+    plan: List[Delegation] 
+    final_answer: bool 
+    answer: str
 
 ### QnA Agent Node
 
@@ -154,14 +160,14 @@ def shopping_cart_agent(state) -> dict:
 ### Intent Router Node 
 
 @traceable(
-name="intent_router_node",
+name="coordinator_agent",
 run_type="llm",
 metadata={"ls_provider": "openai", "ls_model_name": "gpt-4.1-mini"}
 )
 
-def intent_router_node(state):
+def coordinator_agent(state):
 
-   template = prompt_template_config("src/api/agent/prompts/intent_router_agent.yaml", "intent_router_agent")
+   template = prompt_template_config("src/api/agent/prompts/coordinator_agent.yaml", "coordinator_agent")
    
    prompt = template.render()
 
@@ -176,19 +182,19 @@ def intent_router_node(state):
 
    response, raw_response = client.chat.completions.create_with_completion(
         model="gpt-4.1-mini",
-        response_model=IntentRouterResponse,
+        response_model=CoordinatorAgentResponse,
         messages=[{"role": "system", "content": prompt}, *conversation],
         temperature=0,
    )
 
    current_run = get_current_run_tree()
 
-   if response.user_intent == "product_qa":
-        ai_message = []
-   else:
-        ai_message = [AIMessage(
-            content=response.answer,
-        )]
+   if response.final_answer:
+      ai_message = [AIMessage(
+         content=response.answer,
+      )]
+   else: 
+      ai_message = []
 
    
    if current_run: 
@@ -201,6 +207,12 @@ def intent_router_node(state):
 
    return {
       "messages": ai_message,
-      "user_intent": response.user_intent,
-      "answer": response.answer
-      }
+      "answer": response.answer, 
+      "coordinator_agent": {
+         "iteration": state.coordinator_agent.iteration + 1,
+         "final_answer": response.final_answer,
+         "next_agent": response.next_agent,
+         "plan": [data.model_dump() for data in response.plan]
+      },
+      "trace_id": trace_id
+   }
