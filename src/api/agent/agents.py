@@ -35,6 +35,17 @@ class ShoppingCartAgentResponse(BaseModel):
     final_answer: bool = False 
     tool_calls: List[ToolCall] = []
 
+### Warehouse Manager Agent Structured output schemas
+
+class ToolCall(BaseModel):
+    name: str
+    arguments: dict
+
+class WarehouseManagerAgentResponse(BaseModel):  
+    answer: str = Field(description="The answer to the question")
+    final_answer: bool = False 
+    tool_calls: List[ToolCall] = []
+
 ### Coordinator Agent Structured output schemas
 
 class Delegation(BaseModel): 
@@ -52,7 +63,7 @@ class CoordinatorAgentResponse(BaseModel):
 @traceable(
     name="product_qa_agent",
     run_type="llm",
-    metadata={"ls_provider": "openai", "ls_model_name": "gpt-4.1-mini"}
+    metadata={"ls_provider": "openai", "ls_model_name": "gpt-4.1"}
 )
 
 def product_qa_agent(state) -> dict:
@@ -73,7 +84,7 @@ def product_qa_agent(state) -> dict:
    client = instructor.from_openai(OpenAI())
 
    response, raw_response = client.chat.completions.create_with_completion(
-        model="gpt-4.1-mini",
+        model="gpt-4.1",
         response_model=ProductQAAgentResponse,
         messages=[{"role": "system", "content": prompt}, *conversation],
         temperature=0,
@@ -106,7 +117,7 @@ def product_qa_agent(state) -> dict:
 @traceable(
     name="shopping_cart_agent",
     run_type="llm",
-    metadata={"ls_provider": "openai", "ls_model_name": "gpt-4.1-mini"}
+    metadata={"ls_provider": "openai", "ls_model_name": "gpt-4.1"}
 )
 
 def shopping_cart_agent(state) -> dict:
@@ -129,7 +140,7 @@ def shopping_cart_agent(state) -> dict:
    client = instructor.from_openai(OpenAI())
 
    response, raw_response = client.chat.completions.create_with_completion(
-        model="gpt-4.1-mini",
+        model="gpt-4.1",
         response_model=ShoppingCartAgentResponse,
         messages=[{"role": "system", "content": prompt}, *conversation],
         temperature=0,
@@ -157,12 +168,65 @@ def shopping_cart_agent(state) -> dict:
       "answer": response.answer
    }
 
-### Intent Router Node 
+### Warehouse Manager Agent Node 
+@traceable(
+    name="warehouse_manager_agent",
+    run_type="llm",
+    metadata={"ls_provider": "openai", "ls_model_name": "gpt-4.1"}
+)
+
+def warehouse_manager_agent(state) -> dict:
+
+   template = prompt_template_config("src/api/agent/prompts/warehouse_manager_agent.yaml", "warehouse_manager_agent")
+   
+   prompt = template.render(
+      available_tools=state.warehouse_manager_agent.available_tools,
+    )
+
+   messages = state.messages 
+
+   conversation = []
+
+   for message in messages: 
+      conversation.append(convert_to_openai_messages(message))
+
+   client = instructor.from_openai(OpenAI())
+
+   response, raw_response = client.chat.completions.create_with_completion(
+        model="gpt-4.1",
+        response_model=WarehouseManagerAgentResponse,
+        messages=[{"role": "system", "content": prompt}, *conversation],
+        temperature=0,
+   )
+
+   current_run = get_current_run_tree()
+
+   if current_run: 
+        current_run.metadata["usage_metadata"] = {
+            "input_tokens": raw_response.usage.prompt_tokens,
+            "output_tokens": raw_response.usage.completion_tokens,
+            "total_tokens": raw_response.usage.total_tokens,
+        }
+
+   ai_message = format_ai_message(response)
+
+   return {
+      "messages": [ai_message],
+      "warehouse_manager_agent": {
+        "iteration": state.warehouse_manager_agent.iteration + 1,
+        "final_answer": response.final_answer, 
+        "tool_calls": [tool_call.model_dump() for tool_call in response.tool_calls],
+        "available_tools": state.warehouse_manager_agent.available_tools
+      },
+      "answer": response.answer
+   }
+
+### Coordinator Agent Node 
 
 @traceable(
 name="coordinator_agent",
 run_type="llm",
-metadata={"ls_provider": "openai", "ls_model_name": "gpt-4.1-mini"}
+metadata={"ls_provider": "openai", "ls_model_name": "gpt-4.1"}
 )
 
 def coordinator_agent(state):
@@ -181,7 +245,7 @@ def coordinator_agent(state):
    client = instructor.from_openai(OpenAI())
 
    response, raw_response = client.chat.completions.create_with_completion(
-        model="gpt-4.1-mini",
+        model="gpt-4.1",
         response_model=CoordinatorAgentResponse,
         messages=[{"role": "system", "content": prompt}, *conversation],
         temperature=0,
