@@ -17,6 +17,7 @@ dependencies = [
     "langgraph>=0.6.10",
     "langgraph-checkpoint-postgres>=3.0.0",
     "langsmith>=0.4.33",
+    "litellm>=1.80.0",
     "matplotlib>=3.10.6",
     "openai>=1.109.1,<2.0.0",
     "pandas>=2.3.3",
